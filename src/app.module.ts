@@ -11,7 +11,7 @@ import { Wish } from './wishes/wish.entity';
   imports: [
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: 'yalantis.sqlite',
+      database: 'santa.sqlite',
       entities: [User, Wish],
       synchronize: true,
     }),

@@ -43,7 +43,7 @@ export class UsersService {
     return this.usersRepository.find();
   }
 
-  async findOne(id: string): Promise<object> {
+  async findOne(id: string): Promise<User> {
     const user = await this.usersRepository.findOne(id);
     if (!user.recipientId) {
       throw new HttpException(
@@ -52,18 +52,12 @@ export class UsersService {
       );
     }
     const recipient = await this.usersRepository.findOne(user.recipientId);
-    const wishes = await this.wishesService
-      .getByUser(user.recipientId)
-      .then((wishes) => {
-        return wishes.map((wish) => {
-          return wish.description;
-        });
-      });
-    return {
-      name: recipient.name,
-      surname: recipient.surname,
-      wishes: wishes,
-    };
+    const wishes = await this.wishesService.getByUser(user.recipientId);
+    const result = new User();
+    result.name = recipient.name;
+    result.surname = recipient.surname;
+    result.wishes = wishes;
+    return result;
   }
 
   async remove(id: string): Promise<DeleteResult> {
