@@ -1,17 +1,21 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
-import { DeleteResult, Repository } from 'typeorm';
+import { Connection, DeleteResult, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
+import { WishesService } from '../wishes/wishes.service';
+import { Wish } from '../wishes/wish.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    private connection: Connection,
+    private readonly wishesService: WishesService,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(dto: CreateUserDto): Promise<User> {
     const count = await this.findAll().then((users) => {
       return users.length;
     });
@@ -22,10 +26,17 @@ export class UsersService {
       );
     }
     const user = new User();
-    user.name = createUserDto.name;
-    user.surname = createUserDto.surname;
-    user.wishes = createUserDto.wishes;
-    return this.usersRepository.save(user);
+    user.name = dto.name;
+    user.surname = dto.surname;
+    const wishes = [];
+    for (const description of dto.wishes) {
+      const wish = new Wish();
+      wish.description = description;
+      await this.wishesService.create(wish);
+      wishes.push(wish);
+    }
+    user.wishes = wishes;
+    return await this.usersRepository.save(user);
   }
 
   async findAll(): Promise<User[]> {
@@ -41,10 +52,17 @@ export class UsersService {
       );
     }
     const recipient = await this.usersRepository.findOne(user.recipientId);
+    const wishes = await this.wishesService
+      .getByUser(user.recipientId)
+      .then((wishes) => {
+        return wishes.map((wish) => {
+          return wish.description;
+        });
+      });
     return {
       name: recipient.name,
       surname: recipient.surname,
-      wishes: recipient.wishes,
+      wishes: wishes,
     };
   }
 
@@ -52,7 +70,7 @@ export class UsersService {
     return await this.usersRepository.delete(id);
   }
 
-  async shuffle(): Promise<number> {
+  async shuffle(): Promise<void> {
     const users = await this.findAll();
     const count = users.length;
     if (count < 3) {
@@ -64,19 +82,32 @@ export class UsersService {
     if (users[0].recipientId) {
       throw new HttpException(
         { message: 'Users has been already shuffled' },
-        HttpStatus.BAD_REQUEST,
+        HttpStatus.NOT_ACCEPTABLE,
       );
     }
     UsersService.shuffleUserArray(users);
-    for (let i = 0; i < users.length - 1; i++) {
-      await this.usersRepository.update(users[i].id, {
-        recipient: users[i + 1],
+    const queryRunner = this.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      for (let i = 0; i < users.length - 1; i++) {
+        await queryRunner.manager.update(User, users[i].id, {
+          recipient: users[i + 1],
+        });
+      }
+      await queryRunner.manager.update(User, users[users.length - 1].id, {
+        recipient: users[0],
       });
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw new HttpException(
+        { message: 'Error on shuffling users' },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await queryRunner.release();
     }
-    await this.usersRepository.update(users[users.length - 1].id, {
-      recipient: users[0],
-    });
-    return 1;
   }
 
   private static shuffleUserArray(users: User[]): void {

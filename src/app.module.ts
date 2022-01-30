@@ -4,16 +4,19 @@ import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from './users/users.module';
 import { User } from './users/user.entity';
+import { WishesModule } from './wishes/wishes.module';
+import { Wish } from './wishes/wish.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'yalantis.sqlite',
-      entities: [User],
+      entities: [User, Wish],
       synchronize: true,
     }),
     UsersModule,
+    WishesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

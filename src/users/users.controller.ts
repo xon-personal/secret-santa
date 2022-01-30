@@ -1,4 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  ValidationPipe,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { User } from './user.entity';
@@ -8,7 +16,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post('users')
-  create(@Body() createUserDto: CreateUserDto): Promise<User> {
+  create(@Body(ValidationPipe) createUserDto: CreateUserDto): Promise<User> {
     return this.usersService.create(createUserDto);
   }
   @Get('users')
@@ -27,7 +35,7 @@ export class UsersController {
     return result.affected;
   }
   @Post('shuffle')
-  async shuffle(): Promise<number> {
+  async shuffle(): Promise<void> {
     return this.usersService.shuffle();
   }
 }
